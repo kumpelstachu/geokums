@@ -27,6 +27,8 @@ RUN npm run build -w shared \
 FROM node:22-alpine AS runner
 WORKDIR /app
 
+ARG SOURCE_COMMIT=unknown
+ENV SOURCE_COMMIT=$SOURCE_COMMIT
 ENV NODE_ENV=production
 ENV PORT=3001
 

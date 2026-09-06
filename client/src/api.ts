@@ -6,6 +6,10 @@ async function json<T>(res: Response): Promise<T> {
   return data as T;
 }
 
+export function fetchHealth(): Promise<{ ok: boolean; sourceCommit: string | null }> {
+  return fetch('/api/health').then((r) => json(r));
+}
+
 export function startSolo(settings: GameSettings): Promise<SoloGameState> {
   return fetch('/api/solo', {
     method: 'POST',

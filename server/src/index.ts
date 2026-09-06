@@ -17,7 +17,10 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    sourceCommit: process.env.SOURCE_COMMIT || null,
+  });
 });
 
 app.post('/api/solo', async (req, res) => {

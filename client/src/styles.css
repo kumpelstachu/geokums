@@ -169,6 +169,22 @@ button {
   font-size: 1.1rem;
 }
 
+.build-link {
+  position: fixed;
+  left: 0.85rem;
+  bottom: 0.75rem;
+  z-index: 20;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  color: rgba(232, 244, 242, 0.4);
+  text-decoration: none;
+}
+
+.build-link:hover {
+  color: rgba(232, 244, 242, 0.75);
+}
+
 .home-actions {
   display: flex;
   flex-wrap: wrap;

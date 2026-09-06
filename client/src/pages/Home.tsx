@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { GameSettings } from '@geoguess/shared';
+import { fetchHealth } from '../api';
 import SettingsPanel from '../components/SettingsPanel';
 import { getStoredNickname, setStoredNickname } from '../nickname';
 import { getStoredSettings, setStoredSettings } from '../settings';
@@ -12,6 +13,19 @@ export default function Home() {
   const [joinCode, setJoinCode] = useState('');
   const [mode, setMode] = useState<'menu' | 'solo' | 'create' | 'join'>('menu');
   const [settings, setSettings] = useState<GameSettings>(getStoredSettings);
+  const [sourceCommit, setSourceCommit] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchHealth()
+      .then((h) => {
+        if (!cancelled && h.sourceCommit) setSourceCommit(h.sourceCommit);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function saveName(name: string) {
     const n = name.trim() || 'Explorer';
@@ -149,7 +163,20 @@ export default function Home() {
             </div>
           </form>
         )}
+
       </div>
+
+      {sourceCommit && sourceCommit !== 'unknown' && (
+        <a
+          className="build-link"
+          href={`https://github.com/kumpelstachu/geokums/commit/${sourceCommit}`}
+          target="_blank"
+          rel="noreferrer"
+          title={sourceCommit}
+        >
+          build {sourceCommit.slice(0, 8)}
+        </a>
+      )}
     </div>
   );
 }
