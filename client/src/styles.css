@@ -525,6 +525,237 @@ button {
   animation: scorePulse 0.55s ease both;
 }
 
+.compass {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 22;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(11, 31, 36, 0.78);
+  border: 1px solid rgba(232, 244, 242, 0.25);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.compass-ring {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.08s linear;
+}
+
+.compass-n,
+.compass-e,
+.compass-s,
+.compass-w {
+  position: absolute;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--sand);
+}
+
+.compass-n { top: 4px; left: 50%; transform: translateX(-50%); }
+.compass-s { bottom: 4px; left: 50%; transform: translateX(-50%); color: var(--muted); }
+.compass-e { right: 6px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.compass-w { left: 6px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+
+.compass-needle {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 14px solid var(--danger);
+  transform: translateX(-50%);
+}
+
+.settings-panel {
+  display: grid;
+  gap: 1rem;
+  margin: 0.5rem 0 1rem;
+  text-align: left;
+}
+
+.settings-block h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.mode-chip {
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 244, 242, 0.2);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--foam);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.mode-chip.active {
+  background: var(--teal);
+  border-color: transparent;
+  color: white;
+}
+
+.settings-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.check-label,
+.rounds-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.rounds-label select,
+.country-picker select {
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(232, 244, 242, 0.18);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--foam);
+}
+
+.country-panel {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.country-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(280px, 100%);
+}
+
+.country-picker label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.hp-bars {
+  margin-top: 0.55rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.hp-bar-wrap {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.hp-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--danger), var(--sand));
+  transition: width 0.35s ease;
+}
+
+.room-chat {
+  margin-top: 1rem;
+  text-align: left;
+}
+
+.game-layout .room-chat {
+  position: absolute;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 28;
+  margin: 0;
+  width: min(320px, calc(100vw - 2rem));
+}
+
+.room-chat-toggle {
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid rgba(232, 244, 242, 0.14);
+  color: var(--foam);
+  font-weight: 600;
+  backdrop-filter: blur(12px);
+}
+
+.room-chat-panel {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 16px;
+  background: rgba(11, 31, 36, 0.92);
+  border: 1px solid rgba(232, 244, 242, 0.14);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.room-chat-list {
+  max-height: 180px;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+
+.room-chat-msg {
+  display: grid;
+  gap: 0.1rem;
+  font-size: 0.88rem;
+}
+
+.room-chat-msg strong {
+  color: var(--sand);
+  font-size: 0.75rem;
+}
+
+.room-chat-msg.mine strong {
+  color: var(--teal);
+}
+
+.room-chat-form {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.room-chat-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid rgba(232, 244, 242, 0.18);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--foam);
+}
+
+.room-chat-form .btn {
+  padding: 0.65rem 0.9rem;
+  box-shadow: none;
+}
+
 @media (max-width: 720px) {
   .hud-top {
     flex-direction: column;
@@ -538,5 +769,9 @@ button {
   .guess-map,
   .guess-dock.expanded .guess-map {
     height: 200px;
+  }
+  .compass {
+    top: auto;
+    bottom: 12rem;
   }
 }

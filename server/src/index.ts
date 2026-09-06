@@ -5,7 +5,7 @@ import { Server } from 'socket.io';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
-import type { LatLng } from '@geoguess/shared';
+import type { GameSettings, GuessPayload } from '@geoguess/shared';
 import { rooms } from './rooms.js';
 import { advanceSolo, createSoloGame, getSoloGame, submitSoloGuess } from './solo.js';
 
@@ -20,9 +20,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/solo', async (_req, res) => {
+app.post('/api/solo', async (req, res) => {
   try {
-    res.json(await createSoloGame());
+    const settings = (req.body?.settings || req.body) as Partial<GameSettings> | undefined;
+    res.json(await createSoloGame(settings));
   } catch (e) {
     res.status(500).json({ error: (e as Error).message });
   }
@@ -36,11 +37,19 @@ app.get('/api/solo/:id', (req, res) => {
 
 app.post('/api/solo/:id/guess', (req, res) => {
   try {
-    const { lat, lng } = req.body as LatLng;
-    if (typeof lat !== 'number' || typeof lng !== 'number') {
+    const body = req.body as Record<string, unknown>;
+    let payload: GuessPayload;
+    if (body.type === 'country' || typeof body.country === 'string') {
+      payload = { type: 'country', country: String(body.country || '') };
+    } else if (
+      body.type === 'pin' ||
+      (typeof body.lat === 'number' && typeof body.lng === 'number')
+    ) {
+      payload = { type: 'pin', lat: Number(body.lat), lng: Number(body.lng) };
+    } else {
       return res.status(400).json({ error: 'Invalid guess' });
     }
-    res.json(submitSoloGuess(req.params.id, { lat, lng }));
+    res.json(submitSoloGuess(req.params.id, payload));
   } catch (e) {
     res.status(400).json({ error: (e as Error).message });
   }
@@ -68,12 +77,24 @@ function emitState(roomCode: string) {
 rooms.onChange = emitState;
 
 io.on('connection', (socket) => {
-  socket.on('room:create', ({ nickname }, ack) => {
+  socket.on('room:create', ({ nickname, settings }, ack) => {
     try {
-      const room = rooms.createRoom(socket.id, String(nickname || 'Host'));
+      const room = rooms.createRoom(socket.id, String(nickname || 'Host'), settings);
       socket.join(room.code);
       const state = rooms.toPublic(room);
       ack?.({ ok: true, state });
+      emitState(room.code);
+    } catch (e) {
+      ack?.({ ok: false, error: (e as Error).message });
+    }
+  });
+
+  socket.on('room:settings', (settings, ack) => {
+    try {
+      const room = rooms.findRoomByPlayer(socket.id);
+      if (!room) throw new Error('Not in a room');
+      rooms.updateSettings(room, socket.id, settings || {});
+      ack?.({ ok: true });
       emitState(room.code);
     } catch (e) {
       ack?.({ ok: false, error: (e as Error).message });
@@ -104,11 +125,18 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('guess:submit', ({ lat, lng }, ack) => {
+  socket.on('guess:submit', (payload, ack) => {
     try {
       const room = rooms.findRoomByPlayer(socket.id);
       if (!room) throw new Error('Not in a room');
-      rooms.submitGuess(room, socket.id, { lat, lng });
+      const body = (payload || {}) as Record<string, unknown>;
+      let guess: GuessPayload;
+      if (body.type === 'country' || typeof body.country === 'string') {
+        guess = { type: 'country', country: String(body.country || '') };
+      } else {
+        guess = { type: 'pin', lat: Number(body.lat), lng: Number(body.lng) };
+      }
+      rooms.submitGuess(room, socket.id, guess);
       ack?.({ ok: true });
       emitState(room.code);
     } catch (e) {
@@ -123,6 +151,42 @@ io.on('connection', (socket) => {
       rooms.nextRound(room, socket.id);
       ack?.({ ok: true });
       emitState(room.code);
+    } catch (e) {
+      ack?.({ ok: false, error: (e as Error).message });
+    }
+  });
+
+  socket.on('game:rematch', async (ack) => {
+    try {
+      const room = rooms.findRoomByPlayer(socket.id);
+      if (!room) throw new Error('Not in a room');
+      await rooms.rematch(room, socket.id);
+      ack?.({ ok: true });
+      emitState(room.code);
+    } catch (e) {
+      ack?.({ ok: false, error: (e as Error).message });
+    }
+  });
+
+  socket.on('game:lobby', (ack) => {
+    try {
+      const room = rooms.findRoomByPlayer(socket.id);
+      if (!room) throw new Error('Not in a room');
+      rooms.returnToLobby(room, socket.id);
+      ack?.({ ok: true });
+      emitState(room.code);
+    } catch (e) {
+      ack?.({ ok: false, error: (e as Error).message });
+    }
+  });
+
+  socket.on('chat:send', ({ text }, ack) => {
+    try {
+      const room = rooms.findRoomByPlayer(socket.id);
+      if (!room) throw new Error('Not in a room');
+      const msg = rooms.addChat(room, socket.id, String(text || ''));
+      io.to(room.code).emit('chat:message', msg);
+      ack?.({ ok: true });
     } catch (e) {
       ack?.({ ok: false, error: (e as Error).message });
     }

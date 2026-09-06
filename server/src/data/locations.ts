@@ -1,12 +1,17 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Location } from '@geoguess/shared';
+import type { Location, MapPack } from '@geoguess/shared';
 import { resolveStreetView } from '../streetview.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const raw = readFileSync(join(__dirname, 'locations.json'), 'utf8');
-export const LOCATIONS: Location[] = JSON.parse(raw);
+const ALL: Location[] = JSON.parse(raw).map((loc: Location) => ({
+  ...loc,
+  pack: loc.pack || (loc.country === 'Poland' ? 'poland' : 'world'),
+}));
+
+export const LOCATIONS: Location[] = ALL;
 
 function shuffle<T>(arr: T[]): T[] {
   const pool = [...arr];
@@ -17,13 +22,26 @@ function shuffle<T>(arr: T[]): T[] {
   return pool;
 }
 
+function poolForPack(pack: MapPack): Location[] {
+  if (pack === 'poland') {
+    const pl = ALL.filter((l) => l.pack === 'poland' || l.country === 'Poland');
+    return pl.length ? pl : ALL;
+  }
+  // world = everything (including Poland)
+  return ALL;
+}
+
 /** Pick random locations and resolve Street View pano IDs (snaps lat/lng to coverage). */
-export async function sampleLocations(count: number): Promise<Location[]> {
-  if (LOCATIONS.length === 0) {
-    throw new Error('No locations loaded.');
+export async function sampleLocations(
+  count: number,
+  pack: MapPack = 'world',
+): Promise<Location[]> {
+  const source = poolForPack(pack);
+  if (source.length === 0) {
+    throw new Error('No locations loaded for this map.');
   }
 
-  const pool = shuffle(LOCATIONS);
+  const pool = shuffle(source);
   const picked: Location[] = [];
 
   for (const candidate of pool) {
@@ -50,15 +68,19 @@ export async function sampleLocations(count: number): Promise<Location[]> {
       ) {
         throw err;
       }
-      // try next candidate
     }
   }
 
   if (picked.length < count) {
     throw new Error(
-      `Could only resolve ${picked.length}/${count} Street View locations. Enable Street View Static API and run npm run seed.`,
+      `Could only resolve ${picked.length}/${count} Street View locations for map "${pack}".`,
     );
   }
 
   return picked;
+}
+
+/** Dev helper: rewrite locations.json with pack tags (unused at runtime). */
+export function writeTaggedLocations(path = join(__dirname, 'locations.json')) {
+  writeFileSync(path, JSON.stringify(ALL, null, 2));
 }

@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import type { GameSettings } from '@geoguess/shared';
+import SettingsPanel from '../components/SettingsPanel';
 import { getStoredNickname, setStoredNickname } from '../nickname';
+import { getStoredSettings, setStoredSettings } from '../settings';
 
 export default function Home() {
   const navigate = useNavigate();
   const [nickname, setNickname] = useState(getStoredNickname);
   const [joinCode, setJoinCode] = useState('');
-  const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
+  const [mode, setMode] = useState<'menu' | 'solo' | 'create' | 'join'>('menu');
+  const [settings, setSettings] = useState<GameSettings>(getStoredSettings);
 
   function saveName(name: string) {
     const n = name.trim() || 'Explorer';
@@ -15,10 +19,26 @@ export default function Home() {
     return n;
   }
 
+  function saveSettings(next: GameSettings) {
+    setSettings(next);
+    setStoredSettings(next);
+  }
+
+  function onSolo(e: FormEvent) {
+    e.preventDefault();
+    const soloSettings: GameSettings = {
+      ...settings,
+      playMode: settings.playMode === 'duels' ? 'classic' : settings.playMode,
+    };
+    setStoredSettings(soloSettings);
+    navigate('/solo', { state: { settings: soloSettings } });
+  }
+
   function onCreate(e: FormEvent) {
     e.preventDefault();
     const n = saveName(nickname);
-    navigate('/play', { state: { intent: 'create', nickname: n } });
+    setStoredSettings(settings);
+    navigate('/play', { state: { intent: 'create', nickname: n, settings } });
   }
 
   function onJoin(e: FormEvent) {
@@ -29,17 +49,22 @@ export default function Home() {
     navigate(`/play/${code}`, { state: { intent: 'join', nickname: n } });
   }
 
+  const soloSettingsView: GameSettings = {
+    ...settings,
+    playMode: settings.playMode === 'duels' ? 'classic' : settings.playMode,
+  };
+
   return (
     <div className="app-shell home">
       <div className="home-panel">
         <h1 className="brand">GeoGuess</h1>
-        <p>Drop into street-level views around the world. Pin the map. Race your friends.</p>
+        <p>Street View guessing — classic, country, Poland, no-move, and duels.</p>
 
         {mode === 'menu' && (
           <div className="home-actions">
-            <Link className="btn" to="/solo">
+            <button className="btn" type="button" onClick={() => setMode('solo')}>
               Play Solo
-            </Link>
+            </button>
             <button className="btn btn-teal" type="button" onClick={() => setMode('create')}>
               Create Room
             </button>
@@ -47,6 +72,21 @@ export default function Home() {
               Join Room
             </button>
           </div>
+        )}
+
+        {mode === 'solo' && (
+          <form className="home-card" onSubmit={onSolo}>
+            <h2>Solo setup</h2>
+            <SettingsPanel value={soloSettingsView} onChange={saveSettings} allowDuels={false} />
+            <div className="row">
+              <button className="btn btn-ghost" type="button" onClick={() => setMode('menu')}>
+                Back
+              </button>
+              <button className="btn" type="submit">
+                Start
+              </button>
+            </div>
+          </form>
         )}
 
         {mode === 'create' && (
@@ -63,6 +103,7 @@ export default function Home() {
                 autoFocus
               />
             </div>
+            <SettingsPanel value={settings} onChange={saveSettings} />
             <div className="row">
               <button className="btn btn-ghost" type="button" onClick={() => setMode('menu')}>
                 Back

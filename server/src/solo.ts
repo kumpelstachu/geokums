@@ -1,8 +1,10 @@
 import {
-  ROUNDS_PER_GAME,
   distanceKm,
+  normalizeSettings,
+  scoreCountryGuess,
   scoreFromDistanceKm,
-  type LatLng,
+  type GameSettings,
+  type GuessPayload,
   type Location,
   type SoloGameState,
   type SoloReveal,
@@ -11,6 +13,7 @@ import { sampleLocations } from './data/locations.js';
 
 type SoloGame = {
   id: string;
+  settings: GameSettings;
   locations: Location[];
   roundIndex: number;
   phase: 'guessing' | 'reveal' | 'finished';
@@ -25,10 +28,17 @@ function id(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export async function createSoloGame(): Promise<SoloGameState> {
-  const locations = await sampleLocations(ROUNDS_PER_GAME);
+export async function createSoloGame(
+  settings?: Partial<GameSettings>,
+): Promise<SoloGameState> {
+  const normalized = normalizeSettings(settings);
+  if (normalized.playMode === 'duels') {
+    throw new Error('Duels require a multiplayer room');
+  }
+  const locations = await sampleLocations(normalized.rounds, normalized.mapPack);
   const game: SoloGame = {
     id: id(),
+    settings: normalized,
     locations,
     roundIndex: 0,
     phase: 'guessing',
@@ -45,18 +55,36 @@ export function getSoloGame(gameId: string): SoloGameState | null {
   return game ? toPublic(game) : null;
 }
 
-export function submitSoloGuess(gameId: string, guess: LatLng): SoloGameState {
+export function submitSoloGuess(gameId: string, payload: GuessPayload): SoloGameState {
   const game = games.get(gameId);
   if (!game) throw new Error('Game not found');
   if (game.phase !== 'guessing') throw new Error('Not guessing');
   const loc = game.locations[game.roundIndex];
   const answer = { lat: loc.lat, lng: loc.lng };
-  const dist = distanceKm(guess, answer);
-  const score = scoreFromDistanceKm(dist);
+  const answerCountry = loc.country || null;
+
+  let score = 0;
+  let distance: number | null = null;
+  let guess = null as SoloReveal['guess'];
+  let countryGuess = null as string | null;
+
+  if (game.settings.playMode === 'country') {
+    if (payload.type !== 'country') throw new Error('Pick a country');
+    countryGuess = payload.country.trim();
+    score = scoreCountryGuess(countryGuess, answerCountry);
+  } else {
+    if (payload.type !== 'pin') throw new Error('Place a pin');
+    guess = { lat: payload.lat, lng: payload.lng };
+    distance = distanceKm(guess, answer);
+    score = scoreFromDistanceKm(distance);
+  }
+
   const reveal: SoloReveal = {
     answer,
+    answerCountry,
     guess,
-    distanceKm: dist,
+    countryGuess,
+    distanceKm: distance,
     score,
   };
   game.totalScore += score;
@@ -87,6 +115,7 @@ function toPublic(game: SoloGame): SoloGameState {
   return {
     gameId: game.id,
     phase: game.phase,
+    settings: game.settings,
     round: {
       index: game.roundIndex,
       total: game.locations.length,

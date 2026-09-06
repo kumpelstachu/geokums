@@ -1,43 +1,57 @@
 import { useEffect, useRef, useState } from 'react';
 import { hasGoogleMapsKey, loadStreetView } from '../googleMaps';
+import Compass from './Compass';
 
 type Props = {
   panoId: string;
+  allowMove?: boolean;
+  showCompass?: boolean;
 };
 
-export default function PanoViewer({ panoId }: Props) {
+export default function PanoViewer({
+  panoId,
+  allowMove = true,
+  showCompass = true,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const panoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [heading, setHeading] = useState(0);
 
   useEffect(() => {
     if (!containerRef.current || !hasGoogleMapsKey()) return;
     let cancelled = false;
+    let povListener: google.maps.MapsEventListener | null = null;
 
     loadStreetView()
       .then((streetView) => {
         if (cancelled || !containerRef.current) return;
 
-        const existing = panoramaRef.current;
-        if (existing) {
-          existing.setVisible(true);
-          return;
+        if (!panoramaRef.current) {
+          panoramaRef.current = new streetView.StreetViewPanorama(containerRef.current, {
+            pano: panoId,
+            visible: true,
+            addressControl: false,
+            showRoadLabels: false,
+            fullscreenControl: false,
+            motionTracking: false,
+            motionTrackingControl: false,
+            enableCloseButton: false,
+            linksControl: allowMove,
+            panControl: true,
+            zoomControl: true,
+            zoom: 0,
+          });
+        } else {
+          panoramaRef.current.setOptions({ linksControl: allowMove });
+          panoramaRef.current.setVisible(true);
         }
 
-        panoramaRef.current = new streetView.StreetViewPanorama(containerRef.current, {
-          pano: panoId,
-          visible: true,
-          addressControl: false,
-          showRoadLabels: false,
-          fullscreenControl: false,
-          motionTracking: false,
-          motionTrackingControl: false,
-          enableCloseButton: false,
-          linksControl: true,
-          panControl: true,
-          zoomControl: true,
-          zoom: 0,
+        const panorama = panoramaRef.current;
+        povListener = panorama.addListener('pov_changed', () => {
+          setHeading(panorama.getPov().heading || 0);
         });
+        setHeading(panorama.getPov().heading || 0);
         setError(null);
       })
       .catch((e) => {
@@ -51,8 +65,9 @@ export default function PanoViewer({ panoId }: Props) {
 
     return () => {
       cancelled = true;
+      povListener?.remove();
     };
-  }, [panoId]);
+  }, [panoId, allowMove]);
 
   useEffect(() => {
     const panorama = panoramaRef.current;
@@ -60,7 +75,8 @@ export default function PanoViewer({ panoId }: Props) {
     if (panorama.getPano() !== panoId) {
       panorama.setPano(panoId);
     }
-  }, [panoId]);
+    panorama.setOptions({ linksControl: allowMove });
+  }, [panoId, allowMove]);
 
   if (!hasGoogleMapsKey()) {
     return (
@@ -73,6 +89,7 @@ export default function PanoViewer({ panoId }: Props) {
   return (
     <div className="pano">
       <div ref={containerRef} className="street-view" style={{ width: '100%', height: '100%' }} />
+      {showCompass && <Compass heading={heading} />}
       {error && (
         <div
           style={{

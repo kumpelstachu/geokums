@@ -1,21 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import type { LatLng, SoloGameState } from '@geoguess/shared';
-import { formatDistance } from '@geoguess/shared';
+import { Link, useLocation } from 'react-router-dom';
+import type { GameSettings, LatLng, SoloGameState } from '@geoguess/shared';
+import { DEFAULT_SETTINGS, formatDistance } from '@geoguess/shared';
 import { nextSoloRound, startSolo, submitSoloGuess } from '../api';
-import PanoViewer from '../components/PanoViewer';
-import { GuessMap, RevealMap } from '../components/GuessMap';
+import CountryPicker from '../components/CountryPicker';
 import GuessDock from '../components/GuessDock';
+import { GuessMap, RevealMap } from '../components/GuessMap';
+import PanoViewer from '../components/PanoViewer';
+import { getStoredSettings } from '../settings';
+
+type NavState = { settings?: GameSettings };
 
 export default function SoloGame() {
+  const location = useLocation();
+  const nav = (location.state || {}) as NavState;
+  const settings = nav.settings || getStoredSettings() || DEFAULT_SETTINGS;
+
   const [game, setGame] = useState<SoloGameState | null>(null);
   const [guess, setGuess] = useState<LatLng | null>(null);
+  const [country, setCountry] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    startSolo()
+    startSolo(settings)
       .then((g) => {
         if (alive) setGame(g);
       })
@@ -23,16 +32,28 @@ export default function SoloGame() {
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function confirmGuess() {
-    if (!game || !guess || busy) return;
+    if (!game || busy) return;
     setBusy(true);
     setError(null);
     try {
-      const next = await submitSoloGuess(game.gameId, guess);
+      const payload =
+        game.settings.playMode === 'country'
+          ? ({ type: 'country', country } as const)
+          : guess
+            ? ({ type: 'pin', lat: guess.lat, lng: guess.lng } as const)
+            : null;
+      if (!payload || (payload.type === 'country' && !payload.country)) {
+        setError(game.settings.playMode === 'country' ? 'Pick a country' : 'Place a pin');
+        return;
+      }
+      const next = await submitSoloGuess(game.gameId, payload);
       setGame(next);
       setGuess(null);
+      setCountry('');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -47,6 +68,7 @@ export default function SoloGame() {
       const next = await nextSoloRound(game.gameId);
       setGame(next);
       setGuess(null);
+      setCountry('');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -58,9 +80,10 @@ export default function SoloGame() {
     setBusy(true);
     setError(null);
     try {
-      const g = await startSolo();
+      const g = await startSolo(settings);
       setGame(g);
       setGuess(null);
+      setCountry('');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -87,7 +110,7 @@ export default function SoloGame() {
       <div className="lobby">
         <div className="lobby-panel">
           <h1>Loading…</h1>
-          <p className="muted">Fetching your first street view</p>
+          <p className="muted">Resolving Street View…</p>
         </div>
       </div>
     );
@@ -98,7 +121,10 @@ export default function SoloGame() {
       <div className="lobby">
         <div className="lobby-panel">
           <h1 className="score-pop">Final score</h1>
-          <p className="muted">Five rounds around the world</p>
+          <p className="muted">
+            {game.settings.mapPack === 'poland' ? 'Poland' : 'World'} ·{' '}
+            {game.settings.playMode} · {game.settings.movement}
+          </p>
           <div className="stat-row">
             <div className="stat">
               <strong>{game.totalScore.toLocaleString()}</strong>
@@ -110,7 +136,12 @@ export default function SoloGame() {
               <li key={i}>
                 <span>Round {i + 1}</span>
                 <span>
-                  {formatDistance(h.distanceKm)} · {h.score.toLocaleString()} pts
+                  {h.countryGuess
+                    ? `${h.countryGuess}${h.answerCountry ? ` → ${h.answerCountry}` : ''}`
+                    : h.distanceKm != null
+                      ? formatDistance(h.distanceKm)
+                      : '—'}{' '}
+                  · {h.score.toLocaleString()} pts
                 </span>
               </li>
             ))}
@@ -128,9 +159,16 @@ export default function SoloGame() {
     );
   }
 
+  const canConfirm =
+    game.settings.playMode === 'country' ? Boolean(country) : Boolean(guess);
+
   return (
     <div className="game-layout">
-      <PanoViewer panoId={game.round.panoId} />
+      <PanoViewer
+        panoId={game.round.panoId}
+        allowMove={game.settings.movement === 'moving'}
+        showCompass={game.settings.showCompass}
+      />
 
       <div className="hud hud-top">
         <div className="chip-group">
@@ -141,6 +179,10 @@ export default function SoloGame() {
             Round {game.round.index + 1}/{game.round.total}
           </div>
           <div className="chip">{game.totalScore.toLocaleString()} pts</div>
+          <div className="chip">
+            {game.settings.mapPack}/{game.settings.playMode}
+            {game.settings.movement === 'noMove' ? ' · NM' : ''}
+          </div>
         </div>
       </div>
 
@@ -148,7 +190,11 @@ export default function SoloGame() {
         <GuessDock>
           {({ mapReady }) => (
             <>
-              {mapReady ? (
+              {game.settings.playMode === 'country' ? (
+                <div className="guess-map country-panel">
+                  <CountryPicker value={country} onChange={setCountry} />
+                </div>
+              ) : mapReady ? (
                 <GuessMap guess={guess} onPick={setGuess} />
               ) : (
                 <div className="guess-map-placeholder">Hover to open map</div>
@@ -157,7 +203,7 @@ export default function SoloGame() {
                 <button
                   className="btn"
                   type="button"
-                  disabled={!guess || busy}
+                  disabled={!canConfirm || busy}
                   onClick={confirmGuess}
                 >
                   Confirm
@@ -174,13 +220,26 @@ export default function SoloGame() {
           <div className="card">
             <h2 className="score-pop">+{game.reveal.score.toLocaleString()}</h2>
             <p>
-              You were {formatDistance(game.reveal.distanceKm)} away · Total{' '}
-              {game.totalScore.toLocaleString()}
+              {game.reveal.countryGuess != null ? (
+                <>
+                  You: {game.reveal.countryGuess || '—'} · Answer:{' '}
+                  {game.reveal.answerCountry || '—'}
+                </>
+              ) : (
+                <>
+                  {game.reveal.distanceKm != null
+                    ? `You were ${formatDistance(game.reveal.distanceKm)} away`
+                    : 'No pin'}{' '}
+                  · Total {game.totalScore.toLocaleString()}
+                </>
+              )}
             </p>
-            <RevealMap
-              answer={game.reveal.answer}
-              guesses={[{ guess: game.reveal.guess }]}
-            />
+            {game.reveal.guess && (
+              <RevealMap
+                answer={game.reveal.answer}
+                guesses={[{ guess: game.reveal.guess }]}
+              />
+            )}
             <button className="btn" type="button" onClick={goNext} disabled={busy}>
               {game.round.index >= game.round.total - 1 ? 'See results' : 'Next round'}
             </button>
